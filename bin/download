@@ -1,0 +1,53 @@
+#!/usr/bin/env python3
+import gzip
+import logging
+import os
+import requests
+from pathlib import Path
+
+
+logging.basicConfig(
+    level=os.getenv('LOG_LEVEL', 'INFO'),
+    format=(
+        '[%(levelname)s] %(asctime)s '
+        '(%(funcName)s:%(lineno)s) '
+        '%(message)s'
+    )
+)
+logger = logging.getLogger(__name__)
+
+KANJIDIC_URL = 'http://www.edrdg.org/kanjidic/kanjidic2.xml.gz'
+
+
+def main():
+    data_dir = Path('data')
+    kanjidic_path = data_dir / 'kanjidic.xml'
+    schema_dir = Path('schema')
+    dtd_path = schema_dir / 'kanjidic-dtd.xml'
+    download_kanjidic(kanjidic_path)
+    extract_kanjidic_dtd(kanjidic_path, dtd_path)
+
+
+def download_kanjidic(path):
+    logger.info('Downloading KANJIDIC ...')
+    response = requests.get(KANJIDIC_URL, stream=True)
+    response.raise_for_status()
+    with gzip.GzipFile(fileobj=response.raw) as gzfile:
+        with open(path, 'wb') as file:
+            file.write(gzfile.read())
+    logger.info('Downloaded KANJIDIC')
+
+
+def extract_kanjidic_dtd(kanjidic_path, dtd_path):
+    logger.info('Extracting KANJIDIC DTD ...')
+    with open(kanjidic_path) as kanjidic:
+        with open(dtd_path, 'w') as dtd:
+            for line in kanjidic:
+                dtd.write(line)
+                if line.lstrip().startswith(']>'):
+                    break
+    logger.info('Extracted KANJIDIC DTD')
+
+
+if __name__ == '__main__':
+    main()

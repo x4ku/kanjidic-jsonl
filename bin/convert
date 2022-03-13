@@ -1,0 +1,213 @@
+#!/usr/bin/env python3
+import json
+import logging
+import os
+from pathlib import Path
+from bs4 import BeautifulSoup
+
+
+logging.basicConfig(
+    level=os.getenv('LOG_LEVEL', 'INFO'),
+    format=(
+        '[%(levelname)s] %(asctime)s '
+        '(%(funcName)s:%(lineno)s) '
+        '%(message)s'
+    )
+)
+logger = logging.getLogger(__name__)
+
+
+def main():
+    data_dir = Path('data')
+    input_path = str(data_dir / 'kanjidic.xml')
+    output_path = str(data_dir / 'kanjidic.jsonl')
+    convert_kanjidic(input_path, output_path)
+
+
+def convert_kanjidic(input_path, output_path):
+    logger.info('Converting KANJIDIC ...')
+    stream = raw_kanjidic_stream(input_path)
+    stream = kanjidic_record_adapter(stream)
+    stream = stream_writer(stream, output_path)
+    read_stream(stream)
+    logger.info('Converted KANJIDIC')
+
+
+def raw_kanjidic_stream(path):
+    with open(path) as file:
+        record = None
+        recording = False
+        for line in file:
+            if recording:
+                record.append(line)
+                if line.strip() == '</character>':
+                    recording = False
+                    yield ''.join(record)
+            elif line.strip() == '<character>':
+                recording = True
+                record = [line]
+
+
+def kanjidic_record_adapter(stream):
+    for record in stream:
+        yield build_kanjidic_record(soup(record))
+
+
+def build_kanjidic_record(el):
+    return [
+        text_one(el, 'literal'),
+        build_kanjidic_codepoint(el_one(el, 'codepoint')),
+        build_kanjidic_radical(el_one(el, 'radical')),
+        build_kanjidic_misc(el_one(el, 'misc')),
+        build_kanjidic_dic_number(el_one(el, 'dic_number')),
+        build_kanjidic_query_code(el_one(el, 'query_code')),
+        build_kanjidic_reading_meaning(el_one(el, 'reading_meaning'))
+    ]
+
+
+def build_kanjidic_codepoint(el):
+    return [
+        list(map(build_kanjidic_cp_value, el_all(el, 'cp_value')))
+    ]
+
+
+def build_kanjidic_cp_value(el):
+    return [
+        el_text(el),
+        el.get('cp_type')
+    ]
+
+
+def build_kanjidic_radical(el):
+    return [
+        list(map(build_kanjidic_rad_value, el_all(el, 'rad_value')))
+    ]
+
+
+def build_kanjidic_rad_value(el):
+    return [
+        el_text(el),
+        el.get('rad_type')
+    ]
+
+
+def build_kanjidic_misc(el):
+    return [
+        int(text_one(el, 'grade') or 0),
+        list(map(int, text_all(el, 'stroke_count'))),
+        list(map(build_kanjidic_variant, el_all(el, 'variant'))),
+        int(text_one(el, 'freq') or 0),
+        text_all(el, 'rad_name'),
+        int(text_one(el, 'jlpt') or 0)
+    ]
+
+
+def build_kanjidic_variant(el):
+    return [
+        el_text(el),
+        el.get('var_type')
+    ]
+
+
+def build_kanjidic_dic_number(el):
+    return [
+        list(map(build_kanjidic_dic_ref, el_all(el, 'dic_ref')))
+    ]
+
+
+def build_kanjidic_dic_ref(el):
+    return [
+        el_text(el),
+        el.get('dr_type'),
+        int(el.get('m_vol') or 0),
+        int(el.get('m_page') or 0)
+    ]
+
+
+def build_kanjidic_query_code(el):
+    return [
+        list(map(build_kanjidic_q_code, el_all(el, 'q_code')))
+    ]
+
+
+def build_kanjidic_q_code(el):
+    return [
+        el_text(el),
+        el.get('qc_type'),
+        el.get('skip_misclass')
+    ]
+
+
+def build_kanjidic_reading_meaning(el):
+    return [
+        list(map(build_kanjidic_rmgroup, el_all(el, 'rmgroup'))),
+        text_all(el, 'nanori')
+    ]
+
+
+def build_kanjidic_rmgroup(el):
+    return [
+        list(map(build_kanjidic_reading, el_all(el, 'reading'))),
+        list(map(build_kanjidic_meaning, el_all(el, 'meaning')))
+    ]
+
+
+def build_kanjidic_reading(el):
+    return [
+        el_text(el),
+        el.get('r_type'),
+        el.get('on_type'),
+        el.get('r_status')
+    ]
+
+
+def build_kanjidic_meaning(el):
+    return [
+        el_text(el),
+        el.get('m_lang', 'en')
+    ]
+
+
+def soup(markup):
+    return BeautifulSoup(markup, features='lxml')
+
+
+def text_one(el, key):
+    return el_text(el_one(el, key))
+
+
+def text_all(el, key):
+    return [el_text(e) for e in el_all(el, key) if e.text]
+
+
+def el_one(el, key):
+    return el.find(key) if el else None
+
+
+def el_all(el, key):
+    return el.find_all(key) if el else []
+
+
+def el_text(el):
+    return el.text.strip() if el and el.text else None
+
+
+def stream_writer(stream, path, write=None):
+    write = write or write_json
+    with open(path, 'w') as file:
+        for record in stream:
+            write(record, file)
+            yield record
+
+
+def write_json(obj, file):
+    file.write(f'{json.dumps(obj, ensure_ascii=False)}\n')
+
+
+def read_stream(stream):
+    for record in stream:
+        pass
+
+
+if __name__ == '__main__':
+    main()

@@ -1,0 +1,72 @@
+{
+    "literal": null,
+    "codepoint": {
+        "cp_value": [
+            {
+                "cp_value": null,
+                "cp_type": null
+            }
+        ]
+    },
+    "radical": {
+        "rad_value": [
+            {
+                "rad_value": null,
+                "rad_type": null
+            }
+        ]
+    },
+    "misc": {
+        "grade": null,
+        "stroke_count": null,
+        "variant": [
+            {
+                "variant": null,
+                "var_type": null
+            }
+        ],
+        "freq": null,
+        "rad_name": null,
+        "jlpt": null
+    },
+    "dic_number": {
+        "dic_ref": [
+            {
+                "dic_ref": null,
+                "dr_type": null,
+                "m_vol": null,
+                "m_page": null
+            }
+        ]
+    },
+    "query_code": {
+        "q_code": [
+            {
+                "q_code": null,
+                "qc_type": null,
+                "skip_misclass": null
+            }
+        ]
+    },
+    "reading_meaning": {
+        "rmgroup": [
+            {
+                "reading": [
+                    {
+                        "reading": null,
+                        "r_type": null,
+                        "on_type": null,
+                        "r_status": null
+                    }
+                ],
+                "meaning": [
+                    {
+                        "meaning": null,
+                        "m_lang": null
+                    }
+                ]
+            }
+        ],
+        "nanori": null
+    }
+}

@@ -1,0 +1,13 @@
+
+# python
+__pycache__
+*.pyc
+
+# virtual environment
+env
+
+# kanjidic
+data/kanjidic.xml
+
+# junk
+.DS_Store
