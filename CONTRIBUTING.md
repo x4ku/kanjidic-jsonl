@@ -29,16 +29,12 @@ $ bin/test
 
 ## Updating Data Files
 
-Download KANJIDIC:
+Download:
 ```sh
 $ bin/download
 ```
 
-KANJIDIC will be downloaded to the `data/` directory as `kanjidic.xml`, and
-KANJIDIC's DTD file will be downloaded to the `schema/` directory as
-`kanjidic-dtd.xml`.
-
-Convert KANJIDIC:
+Convert:
 ```sh
 $ bin/convert
 ```
