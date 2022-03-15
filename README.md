@@ -16,7 +16,7 @@ You can download the latest files here:
 | [`kanjidic.json`]    | KANJIDIC record schema |
 | [`kanjidic-dtd.xml`] | Additional information |
 
-These files are updated automatically every month.
+These files are updated automatically every quarter (four times per year).
 
 ## Usage
 
