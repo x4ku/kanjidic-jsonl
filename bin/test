@@ -7,13 +7,6 @@ from pathlib import Path
 
 bin_dir = Path('bin')
 
-# import bin/download script as a module
-module_path = str(bin_dir / 'download')
-loader = importlib.machinery.SourceFileLoader('download', module_path)
-spec = importlib.util.spec_from_loader('download', loader)
-download = importlib.util.module_from_spec(spec)
-loader.exec_module(download)
-
 # import bin/convert script as a module
 module_path = str(bin_dir / 'convert')
 loader = importlib.machinery.SourceFileLoader('convert', module_path)
@@ -22,52 +15,7 @@ convert = importlib.util.module_from_spec(spec)
 loader.exec_module(convert)
 
 
-class TestDownload(unittest.TestCase):
-
-    pass
-
-
 class TestConvertUtilities(unittest.TestCase):
-
-    def test_el_text(self):
-        doc = convert.soup('<foo>test</foo>')
-        self.assertEqual(convert.el_text(doc.find('foo')), 'test')
-
-    def test_el_text_none(self):
-        self.assertEqual(convert.el_text(None), None)
-
-    def test_el_text_no_text(self):
-        doc = convert.soup('<foo></foo>')
-        self.assertEqual(convert.el_text(doc.find('foo')), None)
-
-    def test_el_one(self):
-        doc = convert.soup('<foo>test</foo>')
-        self.assertEqual(convert.el_one(doc, 'foo'), doc.find('foo'))
-
-    def test_el_one_none(self):
-        self.assertEqual(convert.el_one(None, 'foo'), None)
-
-    def test_text_one(self):
-        doc = convert.soup('<foo>test</foo>')
-        self.assertEqual(convert.text_one(doc, 'foo'), 'test')
-
-    def test_text_one_none(self):
-        self.assertEqual(convert.text_one(None, 'foo'), None)
-
-    def test_text_one_empty(self):
-        doc = convert.soup('<foo></foo>')
-        self.assertEqual(convert.text_one(doc, 'foo'), None)
-
-    def test_el_all(self):
-        doc = convert.soup('''
-        <foo>one</foo>
-        <foo>two</foo>
-        <foo>three</foo>
-        ''')
-        self.assertEqual(convert.el_all(doc, 'foo'), doc.find_all('foo'))
-
-    def test_el_all_none(self):
-        self.assertEqual(convert.el_all(None, 'foo'), [])
 
     def test_text_all(self):
         doc = convert.soup('''
@@ -88,23 +36,101 @@ class TestConvertUtilities(unittest.TestCase):
         ''')
         self.assertEqual(convert.text_all(doc, 'foo'), ['one', 'three'])
 
+    def test_int_all(self):
+        doc = convert.soup('''
+        <foo>1</foo>
+        <foo>2</foo>
+        <foo>3</foo>
+        ''')
+        self.assertEqual(convert.int_all(doc, 'foo'), [1, 2, 3])
+
+    def test_int_all_invalid(self):
+        doc = convert.soup('''
+        <foo>1</foo>
+        <foo>2.34</foo>
+        <foo>test</foo>
+        ''')
+        self.assertEqual(convert.int_all(doc, 'foo'), [1])
+
+    def test_int_all_none(self):
+        self.assertEqual(convert.int_all(None, 'foo'), [])
+
+    def test_int_all_empty(self):
+        doc = convert.soup('''
+        <foo>1</foo>
+        <foo></foo>
+        <foo>3</foo>
+        ''')
+        self.assertEqual(convert.int_all(doc, 'foo'), [1, 3])
+
+    def test_float_all(self):
+        doc = convert.soup('''
+        <foo>1.2</foo>
+        <foo>2.3</foo>
+        <foo>3.4</foo>
+        ''')
+        self.assertEqual(convert.float_all(doc, 'foo'), [1.2, 2.3, 3.4])
+
+    def test_float_all_invalid(self):
+        doc = convert.soup('''
+        <foo>1.2</foo>
+        <foo>3</foo>
+        <foo>test</foo>
+        ''')
+        self.assertEqual(convert.float_all(doc, 'foo'), [1.2, 3.0])
+
+    def test_float_all_none(self):
+        self.assertEqual(convert.float_all(None, 'foo'), [])
+
+    def test_float_all_empty(self):
+        doc = convert.soup('''
+        <foo>1.2</foo>
+        <foo></foo>
+        <foo>3.4</foo>
+        ''')
+        self.assertEqual(convert.float_all(doc, 'foo'), [1.2, 3.4])
+
 
 class TestConvertRecords(unittest.TestCase):
 
-    def test_build_cp_value(self):
+    def test_build_record(self):
         doc = convert.soup('''
-        <cp_value cp_type="(cp_type)">(cp_value)</cp_value>
+        <character>
+            <literal>(literal)</literal>
+            <codepoint></codepoint>
+            <radical></radical>
+            <misc></misc>
+            <dic_number></dic_number>
+            <query_code></query_code>
+            <reading_meaning></reading_meaning>
+        </character>
         ''')
         self.assertEqual(
-            convert.build_kanjidic_cp_value(doc.find('cp_value')),
-            ['(cp_value)', '(cp_type)']
+            convert.build_record(doc.find('character')),
+            [
+                '(literal)',
+                [[]],
+                [[]],
+                [None, [], [], None, [], None],
+                [[]],
+                [[]],
+                [[], []]
+            ]
         )
 
-    def test_build_cp_value_empty(self):
-        doc = convert.soup('<cp_value></cp_value>')
+    def test_build_record_empty(self):
+        doc = convert.soup('<character></character>')
         self.assertEqual(
-            convert.build_kanjidic_cp_value(doc.find('cp_value')),
-            [None, None]
+            convert.build_record(doc.find('character')),
+            [
+                None,
+                [[]],
+                [[]],
+                [None, [], [], None, [], None],
+                [[]],
+                [[]],
+                [[], []]
+            ]
         )
 
     def test_build_codepoint(self):
@@ -116,30 +142,30 @@ class TestConvertRecords(unittest.TestCase):
         </codepoint>
         ''')
         self.assertEqual(
-            convert.build_kanjidic_codepoint(doc.find('codepoint')),
+            convert.build_codepoint(doc.find('codepoint')),
             [[[None, None], [None, None], [None, None]]]
         )
 
     def test_build_codepoint_empty(self):
         doc = convert.soup('<codepoint></codepoint>')
         self.assertEqual(
-            convert.build_kanjidic_codepoint(doc.find('codepoint')),
+            convert.build_codepoint(doc.find('codepoint')),
             [[]]
         )
 
-    def test_build_rad_value(self):
+    def test_build_cp_value(self):
         doc = convert.soup('''
-        <rad_value rad_type="(rad_type)">(rad_value)</rad_value>
+        <cp_value cp_type="(cp_type)">(cp_value)</cp_value>
         ''')
         self.assertEqual(
-            convert.build_kanjidic_rad_value(doc.find('rad_value')),
-            ['(rad_value)', '(rad_type)']
+            convert.build_cp_value(doc.find('cp_value')),
+            ['(cp_value)', '(cp_type)']
         )
 
-    def test_build_rad_value_empty(self):
-        doc = convert.soup('<rad_value></rad_value>')
+    def test_build_cp_value_empty(self):
+        doc = convert.soup('<cp_value></cp_value>')
         self.assertEqual(
-            convert.build_kanjidic_rad_value(doc.find('rad_value')),
+            convert.build_cp_value(doc.find('cp_value')),
             [None, None]
         )
 
@@ -152,30 +178,30 @@ class TestConvertRecords(unittest.TestCase):
         </radical>
         ''')
         self.assertEqual(
-            convert.build_kanjidic_radical(doc.find('radical')),
+            convert.build_radical(doc.find('radical')),
             [[[None, None], [None, None], [None, None]]]
         )
 
     def test_build_radical_empty(self):
         doc = convert.soup('<radical></radical>')
         self.assertEqual(
-            convert.build_kanjidic_radical(doc.find('radical')),
+            convert.build_radical(doc.find('radical')),
             [[]]
         )
 
-    def test_build_kanjidic_variant(self):
+    def test_build_rad_value(self):
         doc = convert.soup('''
-        <variant var_type="(var_type)">(variant)</variant>
+        <rad_value rad_type="(rad_type)">(rad_value)</rad_value>
         ''')
         self.assertEqual(
-            convert.build_kanjidic_variant(doc.find('variant')),
-            ['(variant)', '(var_type)']
+            convert.build_rad_value(doc.find('rad_value')),
+            ['(rad_value)', '(rad_type)']
         )
 
-    def test_build_kanjidic_variant_empty(self):
-        doc = convert.soup('<variant></variant>')
+    def test_build_rad_value_empty(self):
+        doc = convert.soup('<rad_value></rad_value>')
         self.assertEqual(
-            convert.build_kanjidic_variant(doc.find('variant')),
+            convert.build_rad_value(doc.find('rad_value')),
             [None, None]
         )
 
@@ -184,7 +210,7 @@ class TestConvertRecords(unittest.TestCase):
         <misc>
             <grade>1</grade>
             <stroke_count>2</stroke_count>
-            <stroke_count>3</stroke_count>
+            <stroke_count></stroke_count>
             <stroke_count>4</stroke_count>
             <variant></variant>
             <variant></variant>
@@ -197,10 +223,10 @@ class TestConvertRecords(unittest.TestCase):
         </misc>
         ''')
         self.assertEqual(
-            convert.build_kanjidic_misc(doc.find('misc')),
+            convert.build_misc(doc.find('misc')),
             [
                 1,
-                [2, 3, 4],
+                [2, 4],
                 [[None, None], [None, None], [None, None]],
                 5,
                 ['(rad_name1)', '(rad_name3)'],
@@ -211,24 +237,40 @@ class TestConvertRecords(unittest.TestCase):
     def test_build_misc_empty(self):
         doc = convert.soup('<misc></misc>')
         self.assertEqual(
-            convert.build_kanjidic_misc(doc.find('misc')),
-            [0, [], [], 0, [], 0]
+            convert.build_misc(doc.find('misc')),
+            [None, [], [], None, [], None]
         )
 
-    def test_build_kanjidic_dic_ref(self):
+    def test_build_variant(self):
+        doc = convert.soup('''
+        <variant var_type="(var_type)">(variant)</variant>
+        ''')
+        self.assertEqual(
+            convert.build_variant(doc.find('variant')),
+            ['(variant)', '(var_type)']
+        )
+
+    def test_build_variant_empty(self):
+        doc = convert.soup('<variant></variant>')
+        self.assertEqual(
+            convert.build_variant(doc.find('variant')),
+            [None, None]
+        )
+
+    def test_build_dic_ref(self):
         doc = convert.soup('''
         <dic_ref dr_type="(dr_type)" m_vol="1" m_page="2">(dic_ref)</dic_ref>
         ''')
         self.assertEqual(
-            convert.build_kanjidic_dic_ref(doc.find('dic_ref')),
+            convert.build_dic_ref(doc.find('dic_ref')),
             ['(dic_ref)', '(dr_type)', 1, 2]
         )
 
-    def test_build_kanjidic_dic_ref_empty(self):
+    def test_build_dic_ref_empty(self):
         doc = convert.soup('<dic_ref></dic_ref>')
         self.assertEqual(
-            convert.build_kanjidic_dic_ref(doc.find('dic_ref')),
-            [None, None, 0, 0]
+            convert.build_dic_ref(doc.find('dic_ref')),
+            [None, None, None, None]
         )
 
     def test_build_dic_number(self):
@@ -240,33 +282,21 @@ class TestConvertRecords(unittest.TestCase):
         </dic_number>
         ''')
         self.assertEqual(
-            convert.build_kanjidic_dic_number(doc.find('dic_number')),
-            [[[None, None, 0, 0], [None, None, 0, 0], [None, None, 0, 0]]]
+            convert.build_dic_number(doc.find('dic_number')),
+            [
+                [
+                    [None, None, None, None],
+                    [None, None, None, None],
+                    [None, None, None, None]
+                ]
+            ]
         )
 
     def test_build_dic_number_empty(self):
         doc = convert.soup('<dic_number></dic_number>')
         self.assertEqual(
-            convert.build_kanjidic_dic_number(doc.find('dic_number')),
+            convert.build_dic_number(doc.find('dic_number')),
             [[]]
-        )
-
-    def test_build_kanjidic_q_code(self):
-        doc = convert.soup('''
-        <q_code qc_type="(qc_type)" skip_misclass="(skip_misclass)">
-            (q_code)
-        </q_code>
-        ''')
-        self.assertEqual(
-            convert.build_kanjidic_q_code(doc.find('q_code')),
-            ['(q_code)', '(qc_type)', '(skip_misclass)']
-        )
-
-    def test_build_kanjidic_q_code_empty(self):
-        doc = convert.soup('<q_code></q_code>')
-        self.assertEqual(
-            convert.build_kanjidic_q_code(doc.find('q_code')),
-            [None, None, None]
         )
 
     def test_build_query_code(self):
@@ -278,74 +308,34 @@ class TestConvertRecords(unittest.TestCase):
         </query_code>
         ''')
         self.assertEqual(
-            convert.build_kanjidic_query_code(doc.find('query_code')),
+            convert.build_query_code(doc.find('query_code')),
             [[[None, None, None], [None, None, None], [None, None, None]]]
         )
 
     def test_build_query_code_empty(self):
         doc = convert.soup('<query_code></query_code>')
         self.assertEqual(
-            convert.build_kanjidic_query_code(doc.find('query_code')),
+            convert.build_query_code(doc.find('query_code')),
             [[]]
         )
 
-    def test_build_kanjidic_reading(self):
+    def test_build_q_code(self):
         doc = convert.soup('''
-        <reading r_type="(r_type)" on_type="(on_type)" r_status="(r_status)">
-            (reading)
-        </reading>
+        <q_code qc_type="(qc_type)" skip_misclass="(skip_misclass)">
+            (q_code)
+        </q_code>
         ''')
         self.assertEqual(
-            convert.build_kanjidic_reading(doc.find('reading')),
-            ['(reading)', '(r_type)', '(on_type)', '(r_status)']
+            convert.build_q_code(doc.find('q_code')),
+            ['(q_code)', '(qc_type)', '(skip_misclass)']
         )
 
-    def test_build_kanjidic_reading_empty(self):
-        doc = convert.soup('<reading></reading>')
+    def test_build_q_code_empty(self):
+        doc = convert.soup('<q_code></q_code>')
         self.assertEqual(
-            convert.build_kanjidic_reading(doc.find('reading')),
-            [None, None, None, None]
+            convert.build_q_code(doc.find('q_code')),
+            [None, None, None]
         )
-
-    def test_build_kanjidic_meaning(self):
-        doc = convert.soup('<meaning m_lang="(m_lang)">(meaning)</meaning>')
-        self.assertEqual(
-            convert.build_kanjidic_meaning(doc.find('meaning')),
-            ['(meaning)', '(m_lang)']
-        )
-
-    def test_build_kanjidic_meaning_empty(self):
-        doc = convert.soup('<meaning></meaning>')
-        self.assertEqual(
-            convert.build_kanjidic_meaning(doc.find('meaning')),
-            [None, 'en']
-        )
-
-    def test_build_kanjidic_rmgroup(self):
-        doc = convert.soup('''
-        <rmgroup>
-            <reading></reading>
-            <reading></reading>
-            <reading></reading>
-            <meaning></meaning>
-            <meaning></meaning>
-            <meaning></meaning>
-        </rmgroup>
-        ''')
-        self.assertEqual(
-            convert.build_kanjidic_rmgroup(doc.find('rmgroup')),
-            [
-                [
-                    [None, None, None, None],
-                    [None, None, None, None],
-                    [None, None, None, None]
-                ],
-                [[None, 'en'], [None, 'en'], [None, 'en']]
-            ]
-        )
-
-    def test_build_kanjidic_rmgroup_empty(self):
-        pass
 
     def test_build_reading_meaning(self):
         doc = convert.soup('''
@@ -360,7 +350,7 @@ class TestConvertRecords(unittest.TestCase):
         ''')
         el = doc.find('reading_meaning')
         self.assertEqual(
-            convert.build_kanjidic_reading_meaning(el),
+            convert.build_reading_meaning(el),
             [[[[], []], [[], []], [[], []]], ['(nanori1)', '(nanori3)']]
         )
 
@@ -368,54 +358,71 @@ class TestConvertRecords(unittest.TestCase):
         doc = convert.soup('<reading_meaning></reading_meaning>')
         el = doc.find('reading_meaning')
         self.assertEqual(
-            convert.build_kanjidic_reading_meaning(el),
+            convert.build_reading_meaning(el),
             [[], []]
         )
 
-    def test_build_kanjidic_record(self):
+    def test_build_rmgroup(self):
         doc = convert.soup('''
-        <character>
-            <literal>(literal)</literal>
-            <codepoint></codepoint>
-            <radical></radical>
-            <misc></misc>
-            <dic_number></dic_number>
-            <query_code></query_code>
-            <reading_meaning></reading_meaning>
-        </character>
+        <rmgroup>
+            <reading></reading>
+            <reading></reading>
+            <reading></reading>
+            <meaning></meaning>
+            <meaning></meaning>
+            <meaning></meaning>
+        </rmgroup>
         ''')
         self.assertEqual(
-            convert.build_kanjidic_record(doc.find('character')),
+            convert.build_rmgroup(doc.find('rmgroup')),
             [
-                '(literal)',
-                [[]],
-                [[]],
-                [0, [], [], 0, [], 0],
-                [[]],
-                [[]],
-                [[], []]
+                [
+                    [None, None, None, None],
+                    [None, None, None, None],
+                    [None, None, None, None]
+                ],
+                [[None, 'en'], [None, 'en'], [None, 'en']]
             ]
         )
 
-    def test_build_kanjidic_record_empty(self):
-        doc = convert.soup('<character></character>')
+    def test_build_rmgroup_empty(self):
+        doc = convert.soup('<rmgroup></rmgroup>')
         self.assertEqual(
-            convert.build_kanjidic_record(doc.find('character')),
-            [
-                None,
-                [[]],
-                [[]],
-                [0, [], [], 0, [], 0],
-                [[]],
-                [[]],
-                [[], []]
-            ]
+            convert.build_rmgroup(doc.find('rmgroup')),
+            [[], []]
         )
 
+    def test_build_reading(self):
+        doc = convert.soup('''
+        <reading r_type="(r_type)" on_type="(on_type)" r_status="(r_status)">
+            (reading)
+        </reading>
+        ''')
+        self.assertEqual(
+            convert.build_reading(doc.find('reading')),
+            ['(reading)', '(r_type)', '(on_type)', '(r_status)']
+        )
 
-class TestConvertStreaming(unittest.TestCase):
+    def test_build_reading_empty(self):
+        doc = convert.soup('<reading></reading>')
+        self.assertEqual(
+            convert.build_reading(doc.find('reading')),
+            [None, None, None, None]
+        )
 
-    pass
+    def test_build_meaning(self):
+        doc = convert.soup('<meaning m_lang="(m_lang)">(meaning)</meaning>')
+        self.assertEqual(
+            convert.build_meaning(doc.find('meaning')),
+            ['(meaning)', '(m_lang)']
+        )
+
+    def test_build_meaning_empty(self):
+        doc = convert.soup('<meaning></meaning>')
+        self.assertEqual(
+            convert.build_meaning(doc.find('meaning')),
+            [None, 'en']
+        )
 
 
 if __name__ == '__main__':

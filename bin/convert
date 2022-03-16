@@ -19,21 +19,21 @@ logger = logging.getLogger(__name__)
 
 def main():
     data_dir = Path('data')
-    input_path = str(data_dir / 'kanjidic.xml')
-    output_path = str(data_dir / 'kanjidic.jsonl')
-    convert_kanjidic(input_path, output_path)
+    input_path = data_dir / 'kanjidic.xml'
+    output_path = data_dir / 'kanjidic.jsonl'
+    convert_records(input_path, output_path)
 
 
-def convert_kanjidic(input_path, output_path):
+def convert_records(input_path, output_path):
     logger.info('Converting KANJIDIC ...')
-    stream = raw_kanjidic_stream(input_path)
-    stream = kanjidic_record_adapter(stream)
+    stream = input_stream(input_path)
+    stream = record_adapter(stream)
     stream = stream_writer(stream, output_path)
     read_stream(stream)
     logger.info('Converted KANJIDIC')
 
 
-def raw_kanjidic_stream(path):
+def input_stream(path):
     with open(path) as file:
         record = None
         recording = False
@@ -48,89 +48,103 @@ def raw_kanjidic_stream(path):
                 record = [line]
 
 
-def kanjidic_record_adapter(stream):
+def record_adapter(stream):
     for record in stream:
-        yield build_kanjidic_record(soup(record))
+        yield build_record(soup(record))
 
 
-def build_kanjidic_record(el):
+def build_record(el):
     return [
         text_one(el, 'literal'),
-        build_kanjidic_codepoint(el_one(el, 'codepoint')),
-        build_kanjidic_radical(el_one(el, 'radical')),
-        build_kanjidic_misc(el_one(el, 'misc')),
-        build_kanjidic_dic_number(el_one(el, 'dic_number')),
-        build_kanjidic_query_code(el_one(el, 'query_code')),
-        build_kanjidic_reading_meaning(el_one(el, 'reading_meaning'))
+        build_codepoint(el_one(el, 'codepoint')),
+        build_radical(el_one(el, 'radical')),
+        build_misc(el_one(el, 'misc')),
+        build_dic_number(el_one(el, 'dic_number')),
+        build_query_code(el_one(el, 'query_code')),
+        build_reading_meaning(el_one(el, 'reading_meaning'))
     ]
 
 
-def build_kanjidic_codepoint(el):
+def build_codepoint(el):
     return [
-        list(map(build_kanjidic_cp_value, el_all(el, 'cp_value')))
+        el_all_map(el, 'cp_value', build_cp_value)
     ]
 
 
-def build_kanjidic_cp_value(el):
+def build_cp_value(el):
     return [
         el_text(el),
         el.get('cp_type')
     ]
 
 
-def build_kanjidic_radical(el):
+def build_radical(el):
     return [
-        list(map(build_kanjidic_rad_value, el_all(el, 'rad_value')))
+        el_all_map(el, 'rad_value', build_rad_value)
     ]
 
 
-def build_kanjidic_rad_value(el):
+def build_rad_value(el):
     return [
         el_text(el),
         el.get('rad_type')
     ]
 
 
-def build_kanjidic_misc(el):
+def build_misc(el):
     return [
-        int(text_one(el, 'grade') or 0),
-        list(map(int, text_all(el, 'stroke_count'))),
-        list(map(build_kanjidic_variant, el_all(el, 'variant'))),
-        int(text_one(el, 'freq') or 0),
+        int_one(el, 'grade'),
+        int_all(el, 'stroke_count'),
+        el_all_map(el, 'variant', build_variant),
+        int_one(el, 'freq'),
         text_all(el, 'rad_name'),
-        int(text_one(el, 'jlpt') or 0)
+        int_one(el, 'jlpt')
     ]
 
 
-def build_kanjidic_variant(el):
+def build_variant(el):
     return [
         el_text(el),
         el.get('var_type')
     ]
 
 
-def build_kanjidic_dic_number(el):
+def build_dic_number(el):
     return [
-        list(map(build_kanjidic_dic_ref, el_all(el, 'dic_ref')))
+        el_all_map(el, 'dic_ref', build_dic_ref)
     ]
 
 
-def build_kanjidic_dic_ref(el):
+def build_dic_ref(el):
     return [
         el_text(el),
         el.get('dr_type'),
-        int(el.get('m_vol') or 0),
-        int(el.get('m_page') or 0)
+        get_m_vol(el),
+        get_m_page(el)
     ]
 
 
-def build_kanjidic_query_code(el):
+def get_m_vol(el):
+    try:
+        return int(el.get('m_vol'))
+    except (TypeError, ValueError):
+        return None
+
+
+def get_m_page(el):
+    try:
+        return int(el.get('m_page'))
+    except (TypeError, ValueError):
+        return None
+
+
+def build_query_code(el):
     return [
-        list(map(build_kanjidic_q_code, el_all(el, 'q_code')))
+        el_all_map(el, 'q_code', build_q_code)
     ]
 
 
-def build_kanjidic_q_code(el):
+def build_q_code(el):
     return [
         el_text(el),
         el.get('qc_type'),
@@ -138,21 +152,21 @@ def build_kanjidic_q_code(el):
     ]
 
 
-def build_kanjidic_reading_meaning(el):
+def build_reading_meaning(el):
     return [
-        list(map(build_kanjidic_rmgroup, el_all(el, 'rmgroup'))),
+        el_all_map(el, 'rmgroup', build_rmgroup),
         text_all(el, 'nanori')
     ]
 
 
-def build_kanjidic_rmgroup(el):
+def build_rmgroup(el):
     return [
-        list(map(build_kanjidic_reading, el_all(el, 'reading'))),
-        list(map(build_kanjidic_meaning, el_all(el, 'meaning')))
+        el_all_map(el, 'reading', build_reading),
+        el_all_map(el, 'meaning', build_meaning)
     ]
 
 
-def build_kanjidic_reading(el):
+def build_reading(el):
     return [
         el_text(el),
         el.get('r_type'),
@@ -161,7 +175,7 @@ def build_kanjidic_reading(el):
     ]
 
 
-def build_kanjidic_meaning(el):
+def build_meaning(el):
     return [
         el_text(el),
         el.get('m_lang', 'en')
@@ -172,20 +186,54 @@ def soup(markup):
     return BeautifulSoup(markup, features='lxml')
 
 
-def text_one(el, key):
-    return el_text(el_one(el, key))
+def float_all(el, key):
+    return el_all_map(el, key, el_float)
+
+
+def int_all(el, key):
+    return el_all_map(el, key, el_int)
 
 
 def text_all(el, key):
-    return [el_text(e) for e in el_all(el, key) if e.text]
+    return el_all_map(el, key, el_text)
+
+
+def el_all_map(el, key, func):
+    return list(filter(None, map(func, el_all(el, key))))
+
+
+def el_all(el, key):
+    return el.find_all(key) if el else []
+
+
+def float_one(el, key):
+    return el_float(el_one(el, key))
+
+
+def int_one(el, key):
+    return el_int(el_one(el, key))
+
+
+def text_one(el, key):
+    return el_text(el_one(el, key))
 
 
 def el_one(el, key):
     return el.find(key) if el else None
 
 
-def el_all(el, key):
-    return el.find_all(key) if el else []
+def el_float(el):
+    try:
+        return float(el_text(el) or '')
+    except ValueError:
+        return None
+
+
+def el_int(el):
+    try:
+        return int(el_text(el) or '')
+    except ValueError:
+        return None
 
 
 def el_text(el):
